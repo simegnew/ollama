@@ -25,11 +25,13 @@ var (
 
 // Defaults
 const (
-	// DefaultMask is the default mask used by [Name.DisplayShortest].
-	DefaultMask = "registry.ollama.ai/library/_:latest"
+	// MaskDefault is the default mask used by [Name.DisplayShortest].
+	MaskDefault = "registry.ollama.ai/library/_:latest"
+	MaskNone    = "?/?/?:?"
 
 	// DefaultFill is the default fill used by [ParseName].
-	DefaultFill = "registry.ollama.ai/library/_:latest"
+	FillDefault = "registry.ollama.ai/library/_:latest+Q4_0"
+	FillNone    = "?/?/?:?+?"
 )
 
 const MaxNamePartLen = 128
@@ -162,7 +164,7 @@ func ParseNameFill(s, defaults string) Name {
 
 // ParseName is equal to ParseNameFill(s, DefaultFill).
 func ParseName(s string) Name {
-	return ParseNameFill(s, DefaultFill)
+	return ParseNameFill(s, FillDefault)
 }
 
 func MustParseNameFill(s, defaults string) Name {
@@ -232,7 +234,7 @@ func (r Name) slice(from, to PartKind) Name {
 // The namespace is omitted if the host and the namespace are the same as r.
 // The tag is omitted if it is the mask tag is the same as r.
 func (r Name) DisplayShortest(mask string) string {
-	mask = cmp.Or(mask, DefaultMask)
+	mask = cmp.Or(mask, MaskDefault)
 	d := ParseName(mask)
 	if !d.IsValid() {
 		panic("mask is an invalid Name")

@@ -290,7 +290,7 @@ func TestDisplayShortest(t *testing.T) {
 		{"example.com/library/mistral:latest+Q4_0", "example.com/mistral", "", true},
 
 		// DefaultMask
-		{"registry.ollama.ai/library/mistral:latest+Q4_0", DefaultMask, "mistral", false},
+		{"registry.ollama.ai/library/mistral:latest+Q4_0", MaskDefault, "mistral", false},
 
 		// Auto-Fill
 		{"x", "example.com/library/_:latest", "x", false},
