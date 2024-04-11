@@ -46,12 +46,6 @@ const (
 	PartTag
 	PartBuild
 	PartDigest
-
-	// Invalid is a special part that is used to indicate that a part is
-	// invalid. It is not a valid part of a Name.
-	//
-	// It should be kept as the last part in the list.
-	PartInvalid
 )
 
 var kindNames = map[PartKind]string{
@@ -61,7 +55,6 @@ var kindNames = map[PartKind]string{
 	PartTag:       "Tag",
 	PartBuild:     "Build",
 	PartDigest:    "Digest",
-	PartInvalid:   "Invalid",
 }
 
 func (k PartKind) String() string {
@@ -147,11 +140,11 @@ type Name struct {
 func ParseNameFill(s, defaults string) Name {
 	var r Name
 	parts(s)(func(kind PartKind, part string) bool {
-		if kind == PartInvalid {
+		if kind == PartDigest && !ParseDigest(part).IsValid() {
 			r = Name{}
 			return false
 		}
-		if kind == PartDigest && !ParseDigest(part).IsValid() {
+		if !isValidPart(kind, part) {
 			r = Name{}
 			return false
 		}
@@ -431,14 +424,6 @@ func parts(s string) iter_Seq2[PartKind, string] {
 			return
 		}
 
-		yieldValid := func(kind PartKind, part string) bool {
-			if !isValidPart(kind, part) {
-				yield(PartInvalid, "")
-				return false
-			}
-			return yield(kind, part)
-		}
-
 		numConsecutiveDots := 0
 		partLen := 0
 		state, j := PartDigest, len(s)
@@ -448,7 +433,7 @@ func parts(s string) iter_Seq2[PartKind, string] {
 				// we don't keep spinning on it, waiting for
 				// an isInValidPart check which would scan
 				// over it again.
-				yield(PartInvalid, "")
+				yield(state, "")
 				return
 			}
 
@@ -456,7 +441,7 @@ func parts(s string) iter_Seq2[PartKind, string] {
 			case '@':
 				switch state {
 				case PartDigest:
-					if !yieldValid(PartDigest, s[i+1:j]) {
+					if !yield(PartDigest, s[i+1:j]) {
 						return
 					}
 					if i == 0 {
@@ -468,67 +453,63 @@ func parts(s string) iter_Seq2[PartKind, string] {
 					}
 					state, j, partLen = PartBuild, i, 0
 				default:
-					yield(PartInvalid, "")
+					yield(state, "")
 					return
 				}
 			case '+':
 				switch state {
 				case PartBuild, PartDigest:
-					if !yieldValid(PartBuild, s[i+1:j]) {
+					if !yield(PartBuild, s[i+1:j]) {
 						return
 					}
 					state, j, partLen = PartTag, i, 0
 				default:
-					yield(PartInvalid, "")
+					yield(state, "")
 					return
 				}
 			case ':':
 				switch state {
 				case PartTag, PartBuild, PartDigest:
-					if !yieldValid(PartTag, s[i+1:j]) {
+					if !yield(PartTag, s[i+1:j]) {
 						return
 					}
 					state, j, partLen = PartModel, i, 0
 				default:
-					yield(PartInvalid, "")
+					yield(state, "")
 					return
 				}
 			case '/':
 				switch state {
 				case PartModel, PartTag, PartBuild, PartDigest:
-					if !yieldValid(PartModel, s[i+1:j]) {
+					if !yield(PartModel, s[i+1:j]) {
 						return
 					}
 					state, j = PartNamespace, i
 				case PartNamespace:
-					if !yieldValid(PartNamespace, s[i+1:j]) {
+					if !yield(PartNamespace, s[i+1:j]) {
 						return
 					}
 					state, j, partLen = PartHost, i, 0
 				default:
-					yield(PartInvalid, "")
+					yield(state, "")
 					return
 				}
 			default:
 				if s[i] == '.' {
 					if numConsecutiveDots++; numConsecutiveDots > 1 {
-						yield(PartInvalid, "")
+						yield(state, "")
 						return
 					}
 				} else {
 					numConsecutiveDots = 0
 				}
-				if !isValidByteFor(state, s[i]) {
-					yield(PartInvalid, "")
-					return
-				}
 			}
 		}
 
 		if state <= PartNamespace {
-			yieldValid(state, s[:j])
+			yield(state, s[:j])
 		} else {
-			yieldValid(PartModel, s[:j])
+			yield(PartModel, s[:j])
 		}
 	}
 }
