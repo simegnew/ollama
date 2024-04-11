@@ -389,7 +389,7 @@ func TestFill(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.dst, func(t *testing.T) {
-			r := Fill(ParseNameFill(tt.dst, ""), ParseNameFill(tt.src, ""))
+			r := Fill(ParseNameFill(tt.dst, ""), tt.src)
 			if r.String() != tt.want {
 				t.Errorf("Fill(%q, %q) = %q; want %q", tt.dst, tt.src, r, tt.want)
 			}
@@ -408,7 +408,7 @@ func TestNameStringAllocs(t *testing.T) {
 }
 
 func ExampleFill() {
-	defaults := ParseNameFill("registry.ollama.com/library/PLACEHOLDER:latest+Q4_0", "")
+	defaults := "registry.ollama.com/library/PLACEHOLDER:latest+Q4_0"
 	r := Fill(ParseNameFill("mistral", ""), defaults)
 	fmt.Println(r)
 

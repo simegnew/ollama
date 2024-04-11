@@ -3,6 +3,7 @@ package model
 import (
 	"cmp"
 	"errors"
+	"fmt"
 	"hash/maphash"
 	"io"
 	"log/slog"
@@ -26,11 +27,11 @@ var (
 // Defaults
 const (
 	// MaskDefault is the default mask used by [Name.DisplayShortest].
-	MaskDefault = "registry.ollama.ai/library/_:latest"
+	MaskDefault = "registry.ollama.ai/library/?:latest"
 	MaskNone    = "?/?/?:?"
 
 	// DefaultFill is the default fill used by [ParseName].
-	FillDefault = "registry.ollama.ai/library/_:latest+Q4_0"
+	FillDefault = "registry.ollama.ai/library/?:latest+Q4_0"
 	FillNone    = "?/?/?:?+?"
 )
 
@@ -48,6 +49,8 @@ const (
 	PartTag
 	PartBuild
 	PartDigest
+
+	PartExtraneous = -1
 )
 
 var kindNames = map[PartKind]string{
@@ -146,7 +149,7 @@ func ParseNameFill(s, defaults string) Name {
 			r = Name{}
 			return false
 		}
-		if !isValidPart(kind, part) {
+		if kind == PartExtraneous || !isValidPart(kind, part) {
 			r = Name{}
 			return false
 		}
@@ -157,7 +160,7 @@ func ParseNameFill(s, defaults string) Name {
 		if defaults == "" {
 			return r
 		}
-		return Fill(r, ParseNameFill(defaults, ""))
+		return Fill(r, "")
 	}
 	return Name{}
 }
@@ -165,6 +168,22 @@ func ParseNameFill(s, defaults string) Name {
 // ParseName is equal to ParseNameFill(s, DefaultFill).
 func ParseName(s string) Name {
 	return ParseNameFill(s, FillDefault)
+}
+
+func parseMask(s string) Name {
+	var r Name
+	parts(s)(func(kind PartKind, part string) bool {
+		if part == "?" {
+			// mask part; treat as empty but valid
+			return true
+		}
+		if !isValidPart(kind, part) {
+			panic(fmt.Errorf("model.ParseName: invalid mark part %s: %q", kind, part))
+		}
+		r.parts[kind] = part
+		return true
+	})
+	return r
 }
 
 func MustParseNameFill(s, defaults string) Name {
@@ -178,10 +197,10 @@ func MustParseNameFill(s, defaults string) Name {
 // Fill fills in the missing parts of dst with the parts of src.
 //
 // The returned Name will only be valid if dst is valid.
-func Fill(dst, src Name) Name {
-	var r Name
+func Fill(r Name, fill string) Name {
+	f := parseMask(fill)
 	for i := range r.parts {
-		r.parts[i] = cmp.Or(dst.parts[i], src.parts[i])
+		r.parts[i] = cmp.Or(r.parts[i], f.parts[i])
 	}
 	return r
 }
@@ -235,9 +254,9 @@ func (r Name) slice(from, to PartKind) Name {
 // The tag is omitted if it is the mask tag is the same as r.
 func (r Name) DisplayShortest(mask string) string {
 	mask = cmp.Or(mask, MaskDefault)
-	d := ParseName(mask)
-	if !d.IsValid() {
-		panic("mask is an invalid Name")
+	d := parseMask(mask)
+	if d.IsZero() {
+		panic(fmt.Errorf("model.Name.DisplayShortest: invalid mask %q", mask))
 	}
 	equalSlice := func(form, to PartKind) bool {
 		return r.slice(form, to).EqualFold(d.slice(form, to))
@@ -435,7 +454,7 @@ func parts(s string) iter_Seq2[PartKind, string] {
 				// we don't keep spinning on it, waiting for
 				// an isInValidPart check which would scan
 				// over it again.
-				yield(state, "")
+				yield(state, s[i+1:j])
 				return
 			}
 
@@ -455,7 +474,7 @@ func parts(s string) iter_Seq2[PartKind, string] {
 					}
 					state, j, partLen = PartBuild, i, 0
 				default:
-					yield(state, "")
+					yield(PartExtraneous, s[i+1:j])
 					return
 				}
 			case '+':
@@ -466,7 +485,7 @@ func parts(s string) iter_Seq2[PartKind, string] {
 					}
 					state, j, partLen = PartTag, i, 0
 				default:
-					yield(state, "")
+					yield(PartExtraneous, s[i+1:j])
 					return
 				}
 			case ':':
@@ -477,7 +496,7 @@ func parts(s string) iter_Seq2[PartKind, string] {
 					}
 					state, j, partLen = PartModel, i, 0
 				default:
-					yield(state, "")
+					yield(PartExtraneous, s[i+1:j])
 					return
 				}
 			case '/':
@@ -493,7 +512,7 @@ func parts(s string) iter_Seq2[PartKind, string] {
 					}
 					state, j, partLen = PartHost, i, 0
 				default:
-					yield(state, "")
+					yield(PartExtraneous, s[i+1:j])
 					return
 				}
 			default:
