@@ -60,7 +60,7 @@ overrides==7.4.0
 packaging==23.1
 pdf2image==1.16.3
 pdfminer==20191125
-pdfminer.six==20221105
+pdfminer.six==20251107
 Pillow==10.0.0
 posthog==3.0.1
 protobuf==4.24.0
